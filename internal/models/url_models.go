@@ -17,45 +17,34 @@ type URL struct {
 	CreatedAt time.Time
 }
 
-func isStringInDB(value string) bool {
-	var exists bool
-	query := "SELECT EXISTS(SELECT 1 FROM your_table WHERE short_url = $1)"
-	err := db.DB.QueryRow(query, value).Scan(&exists)
-	if err != nil {
-		errors.New("DB query error:")
-	}
-	return exists
-}
-
-func getUniqueString() string {
-	for {
-		randomStr := utils.GenerateHash()
-		if !isStringInDB(randomStr) {
-			return randomStr
-		}
-	}
-}
-
 func (u *URL) GenerateURL() (string, error) {
 	query := `
 		INSERT INTO urls (long_url, short_url, created_at)
-		VALUES ($1, $2, $3)
-		RETURNING id
+		SELECT $1, $2::VARCHAR, $3
+		WHERE NOT EXISTS (
+			SELECT 1 FROM urls WHERE short_url = $2::VARCHAR
+		)
+		RETURNING id;
 	`
 
 	if !utils.IsValidURL(u.LongURL) {
 		return "", errors.New("invalid URL")
 	}
 
-	hash := getUniqueString()
+	for {
+		hash := utils.GenerateHash()
+		err := db.DB.QueryRow(query, u.LongURL, hash, u.CreatedAt).Scan(&u.ID)
 
-	fmt.Println("Hash: ", hash)
-	err := db.DB.QueryRow(query, u.LongURL, hash, u.CreatedAt).Scan(&u.ID)
-	if err != nil {
-		return "", errors.New(err.Error())
+		if err == nil {
+			return hash, nil
+		}
+
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+
+		return "", fmt.Errorf("DB insert error: %w", err)
 	}
-
-	return hash, nil
 }
 
 func GetLongURL(shortURL string) (string, error) {
