@@ -20,16 +20,25 @@ func ShortenURLHandler(ctx *gin.Context) {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
+	_ = services.SetValueInCache(val, url.LongURL)
 
 	ctx.JSON(200, gin.H{"message": "URL shortened successfully babe", "link": "http://localhost:8080/" + val})
 }
 
 func RedirectURLHandler(ctx *gin.Context) {
 	shortenedURL := ctx.Param("shortenedURL")
-	url, err := services.GetRedirectURL(shortenedURL)
-	if err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
-		return
+	url, _ := services.GetValueFromCache(shortenedURL)
+	if url == "" {
+		// 🚀 Fetch from DB if not in cache
+		var err error
+		url, err = services.GetRedirectURL(shortenedURL)
+		if err != nil {
+			ctx.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		// 🗄️ Store in Cache (using correct key)
+		_ = services.SetValueInCache(shortenedURL, url)
 	}
 	ctx.Redirect(http.StatusFound, url)
 

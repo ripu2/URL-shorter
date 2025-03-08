@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"example.com/url-shorter/db"
+	db "example.com/url-shorter/config/db"
 	"example.com/url-shorter/internal/utils"
 )
 
